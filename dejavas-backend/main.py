@@ -1,6 +1,6 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 import uuid
 import random
 
@@ -50,7 +50,19 @@ def upload_brief(brief: Brief):
 @app.post("/configure-agents/{session_id}")
 def configure_agents(session_id: str, config: AgentConfig):
     if session_id not in simulations:
-        return {"error": "Session not found"}
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    total = (
+        config.customer_percentage
+        + config.competitor_percentage
+        + config.influencer_percentage
+        + config.internal_team_percentage
+    )
+    if total != 100:
+        raise HTTPException(
+            status_code=400, detail="Agent percentages must sum to 100"
+        )
+
     simulations[session_id]["agent_config"] = config
     return {"message": "Agent configuration saved"}
 
