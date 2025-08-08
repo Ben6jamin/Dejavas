@@ -93,14 +93,6 @@ def simulate(session_id: str):
         "must_fix": must_fix,
     }
 
-
-if __name__ == "__main__":  # pragma: no cover - manual invocation
-    app.serve()
-
-
-if __name__ == "__main__":  # pragma: no cover - manual invocation
-    app.serve()
-
 # 4. Get Report
 @app.get("/report/{session_id}")
 def get_report(session_id: str):
