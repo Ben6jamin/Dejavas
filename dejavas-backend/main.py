@@ -1,12 +1,18 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional, Dict, Any
 import uuid
+import asyncio
 
 from langgraph_simulation import LangGraphSimulator
+from integrations import IntegrationManager, IntegrationType, BrowserExtensionAPI, ScannedContent, ContentType
 
-app = FastAPI()
+app = FastAPI(title="Dejavas API", description="AI-Powered Marketing Intelligence Arena", version="1.0.0")
+
+# Initialize core components
 simulator = LangGraphSimulator()
+integration_manager = IntegrationManager()
+browser_api = BrowserExtensionAPI(integration_manager)
 
 # --- Data Models ---
 class Feature(BaseModel):
@@ -28,6 +34,16 @@ class SimulationReport(BaseModel):
     adoption_score: float
     top_objections: List[str]
     must_fix: List[str]
+
+class ContentAnalysisRequest(BaseModel):
+    url: Optional[str] = None
+    text: Optional[str] = None
+    integration_type: str = "browser_extension"
+
+class IntegrationConfig(BaseModel):
+    integration_type: str
+    webhook_url: Optional[str] = None
+    settings: Optional[Dict[str, Any]] = None
 
 # --- Data Storage (temporary for this step) ---
 simulations = {}
@@ -133,4 +149,60 @@ def rerun_simulation(session_id: str):
         "adoption_score": adoption_score,
         "top_objections": top_objections,
         "must_fix": must_fix,
+    }
+
+# --- Integration Endpoints ---
+
+# 6. Analyze Content (Ubiquitous Integration)
+@app.post("/analyze-content/")
+async def analyze_content(request: ContentAnalysisRequest):
+    """Analyze content from URLs or text - the core of ubiquitous integration"""
+    try:
+        if request.url:
+            result = await integration_manager.process_content(request.url, IntegrationType.BROWSER_EXTENSION)
+        elif request.text:
+            result = await integration_manager.process_content(request.text, IntegrationType.BROWSER_EXTENSION)
+        else:
+            raise HTTPException(status_code=400, detail="Either URL or text must be provided")
+        
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+
+# 7. Browser Extension API
+@app.get("/extension/config")
+def get_extension_config():
+    """Get configuration for browser extension"""
+    return browser_api.get_extension_config()
+
+@app.post("/extension/analyze-page")
+async def analyze_page(url: str):
+    """Analyze current page for browser extension"""
+    return await browser_api.analyze_current_page(url)
+
+@app.post("/extension/analyze-text")
+async def analyze_text(text: str):
+    """Analyze selected text for browser extension"""
+    return await browser_api.analyze_selected_text(text)
+
+# 8. Register Integration
+@app.post("/integrations/register")
+def register_integration(config: IntegrationConfig):
+    """Register a new integration (Slack, Discord, etc.)"""
+    try:
+        integration_type = IntegrationType(config.integration_type)
+        integration_manager.register_integration(integration_type, config.dict())
+        return {"message": f"Integration {config.integration_type} registered successfully"}
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid integration type: {config.integration_type}")
+
+# 9. Health Check
+@app.get("/health")
+def health_check():
+    """Health check endpoint"""
+    return {
+        "status": "healthy",
+        "version": "1.0.0",
+        "integrations": list(integration_manager.active_integrations.keys()),
+        "simulations_running": len(simulations)
     }
