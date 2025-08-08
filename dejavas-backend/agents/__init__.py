@@ -9,6 +9,9 @@ from typing import Dict, List, Optional, Any
 from enum import Enum
 import random
 import json
+import asyncio
+
+from ..llm_integration import llm_integration, AgentContext, AgentRole, FeatureAnalysis
 
 class AgentType(Enum):
     CUSTOMER = "customer"
@@ -69,23 +72,42 @@ class Agent:
         self.relationships = {}
         self.current_opinion = 0.5  # Neutral starting point
         
-    def process_feature(self, feature: Dict[str, Any]) -> Dict[str, Any]:
-        """Process a feature based on agent's genome"""
-        # Calculate opinion based on personality traits and demographics
-        opinion_shift = self._calculate_opinion_shift(feature)
-        self.current_opinion = max(0, min(1, self.current_opinion + opinion_shift))
+    async def process_feature(self, feature: Dict[str, Any], market_context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Process a feature using real AI intelligence"""
         
-        # Spend attention tokens
-        tokens_spent = self._calculate_attention_spend(feature)
-        self.genome.attention_tokens -= tokens_spent
+        # Create agent context for LLM
+        context = AgentContext(
+            role=AgentRole(self.genome.agent_type.value),
+            genome=self.genome.to_dict(),
+            current_opinion=self.current_opinion,
+            memory=self.memory,
+            relationships=self.relationships,
+            attention_tokens=self.genome.attention_tokens
+        )
+        
+        # Use LLM integration for intelligent analysis
+        analysis = await llm_integration.analyze_feature_as_agent(
+            feature, context, market_context or {}
+        )
+        
+        # Update agent state based on LLM analysis
+        self.current_opinion = max(0, min(1, self.current_opinion + analysis.opinion_shift))
+        self.genome.attention_tokens -= analysis.attention_spent
+        
+        # Store reasoning in memory
+        self.memory.append(analysis.reasoning)
+        if len(self.memory) > 10:  # Keep last 10 memories
+            self.memory.pop(0)
         
         return {
             'agent_name': self.name,
             'agent_type': self.genome.agent_type.value,
             'opinion': self.current_opinion,
-            'tokens_spent': tokens_spent,
-            'reasoning': self._generate_reasoning(feature, opinion_shift),
-            'influence_impact': self.genome.influence_score * abs(opinion_shift)
+            'tokens_spent': analysis.attention_spent,
+            'reasoning': analysis.reasoning,
+            'objections': analysis.objections,
+            'suggestions': analysis.suggestions,
+            'influence_impact': analysis.influence_impact
         }
     
     def _calculate_opinion_shift(self, feature: Dict[str, Any]) -> float:

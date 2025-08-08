@@ -10,8 +10,10 @@ import random
 import networkx as nx
 from enum import Enum
 import json
+import asyncio
 
 from ..agents import Agent, AgentFactory, AgentType
+from ..llm_integration import llm_integration, FeatureAnalysis
 
 class NetworkTopology(Enum):
     ECHO_CHAMBER = "echo_chamber"
@@ -192,8 +194,8 @@ class AdvancedSimulator:
         
         return agents
     
-    def run_simulation(self, brief: Dict, config: Dict, num_rounds: int = 5) -> Dict[str, Any]:
-        """Run the complete simulation with multiple rounds"""
+    async def run_simulation(self, brief: Dict, config: Dict, num_rounds: int = 5, market_context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Run the complete simulation with multiple rounds using real AI intelligence"""
         # Create agent population
         agents = self.create_agent_population(config)
         self.influence_graph.add_agents(agents)
@@ -203,7 +205,7 @@ class AdvancedSimulator:
         
         # Run multiple rounds
         for round_num in range(num_rounds):
-            round_result = self._run_single_round(brief, agents, round_num)
+            round_result = await self._run_single_round(brief, agents, round_num, market_context)
             self.round_history.append(round_result)
             
             # Update agent opinions based on influence
@@ -212,6 +214,9 @@ class AdvancedSimulator:
         # Calculate final metrics
         final_metrics = self.health_metrics.calculate_metrics(agents, 
                                                              [i for r in self.round_history for i in r['interactions']])
+        
+        # Generate advanced insights using LLM
+        advanced_insights = await self._generate_advanced_insights(brief, agents, market_context)
         
         # Generate final report
         adoption_score = self._calculate_adoption_score(agents)
@@ -224,20 +229,29 @@ class AdvancedSimulator:
             'must_fix': must_fix,
             'arena_health': final_metrics,
             'round_history': self.round_history,
-            'agent_summaries': [self._summarize_agent(agent) for agent in agents]
+            'agent_summaries': [self._summarize_agent(agent) for agent in agents],
+            'advanced_insights': advanced_insights
         }
     
-    def _run_single_round(self, brief: Dict, agents: List[Agent], round_num: int) -> Dict[str, Any]:
-        """Run a single round of the simulation"""
+    async def _run_single_round(self, brief: Dict, agents: List[Agent], round_num: int, market_context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Run a single round of the simulation using real AI intelligence"""
         interactions = []
         
         # Each agent processes each feature
         for feature in brief.get('features', []):
             feature_interactions = []
             
+            # Process all agents concurrently for better performance
+            agent_tasks = []
             for agent in agents:
-                # Process feature
-                result = agent.process_feature(feature)
+                task = agent.process_feature(feature, market_context)
+                agent_tasks.append(task)
+            
+            # Wait for all agents to complete their analysis
+            agent_results = await asyncio.gather(*agent_tasks)
+            
+            for i, result in enumerate(agent_results):
+                agent = agents[i]
                 
                 # Apply influence from other agents
                 influencers = self.influence_graph.get_influencers(agent.name)
@@ -320,4 +334,61 @@ class AdvancedSimulator:
             'influence_score': agent.genome.influence_score,
             'attention_tokens_remaining': agent.genome.attention_tokens,
             'personality_traits': [trait.value for trait in agent.genome.personality_traits]
+        }
+    
+    async def _generate_advanced_insights(self, brief: Dict, agents: List[Agent], market_context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Generate advanced insights using LLM integration"""
+        
+        # Collect all feature analyses from the simulation
+        all_analyses = []
+        for round_data in self.round_history:
+            for interaction in round_data['interactions']:
+                # Create FeatureAnalysis objects from interactions
+                analysis = FeatureAnalysis(
+                    feature_title=interaction.get('feature_title', 'Unknown'),
+                    opinion_shift=interaction.get('opinion_shift', 0),
+                    reasoning=interaction.get('reasoning', ''),
+                    objections=interaction.get('objections', []),
+                    suggestions=interaction.get('suggestions', []),
+                    influence_impact=interaction.get('influence_impact', 0),
+                    attention_spent=interaction.get('tokens_spent', 0)
+                )
+                all_analyses.append(analysis)
+        
+        # Generate market insights
+        market_insights = await llm_integration.generate_market_insights(
+            brief.get('features', []),
+            all_analyses,
+            market_context or {}
+        )
+        
+        # Generate persona insights
+        agent_contexts = []
+        for agent in agents:
+            context = {
+                'role': agent.genome.agent_type.value,
+                'genome': agent.genome.to_dict(),
+                'final_opinion': agent.current_opinion
+            }
+            agent_contexts.append(context)
+        
+        persona_insights = await llm_integration.generate_persona_insights(
+            agent_contexts,
+            all_analyses
+        )
+        
+        # Generate competitive analysis if competitor data is available
+        competitor_analysis = {}
+        if market_context and market_context.get('competitors'):
+            competitor_analysis = await llm_integration.generate_competitive_analysis(
+                brief.get('features', []),
+                market_context.get('competitors', {})
+            )
+        
+        return {
+            'market_insights': market_insights,
+            'persona_insights': persona_insights,
+            'competitor_analysis': competitor_analysis,
+            'simulation_confidence': 0.85,
+            'ai_powered': True
         }

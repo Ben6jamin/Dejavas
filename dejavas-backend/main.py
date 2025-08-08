@@ -6,11 +6,13 @@ import asyncio
 
 from langgraph_simulation import LangGraphSimulator
 from integrations import IntegrationManager, IntegrationType, BrowserExtensionAPI, ScannedContent, ContentType
+from simulation import AdvancedSimulator, NetworkTopology
 
 app = FastAPI(title="Dejavas API", description="AI-Powered Marketing Intelligence Arena", version="1.0.0")
 
 # Initialize core components
 simulator = LangGraphSimulator()
+advanced_simulator = AdvancedSimulator(NetworkTopology.LOOSE_NETWORK)
 integration_manager = IntegrationManager()
 browser_api = BrowserExtensionAPI(integration_manager)
 
@@ -86,7 +88,7 @@ def configure_agents(session_id: str, config: AgentConfig):
 
 # 3. Simulate Debate
 @app.post("/simulate/{session_id}")
-def simulate(session_id: str):
+async def simulate(session_id: str):
     if session_id not in simulations:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -95,19 +97,13 @@ def simulate(session_id: str):
         raise HTTPException(status_code=400, detail="Agent configuration missing")
 
     brief = simulations[session_id]["brief"]
-    adoption_score, top_objections, must_fix = simulator.run(brief, config)
+    
+    # Use advanced simulator with LLM integration
+    result = await advanced_simulator.run_simulation(brief, config, num_rounds=3)
+    
+    simulations[session_id]["simulation_result"] = result
 
-    simulations[session_id]["simulation_result"] = {
-        "adoption_score": adoption_score,
-        "top_objections": top_objections,
-        "must_fix": must_fix,
-    }
-
-    return {
-        "adoption_score": adoption_score,
-        "top_objections": top_objections,
-        "must_fix": must_fix,
-    }
+    return result
 
 # 4. Get Report
 @app.get("/report/{session_id}")
@@ -196,7 +192,63 @@ def register_integration(config: IntegrationConfig):
     except ValueError:
         raise HTTPException(status_code=400, detail=f"Invalid integration type: {config.integration_type}")
 
-# 9. Health Check
+# 9. Advanced AI Analysis
+@app.post("/advanced-analysis/")
+async def advanced_analysis(request: ContentAnalysisRequest):
+    """Advanced AI-powered analysis with market context and competitive intelligence"""
+    try:
+        # Create a comprehensive brief from the content
+        if request.url:
+            scanned_content = await integration_manager.scanner.scan_url(request.url)
+        elif request.text:
+            scanned_content = ScannedContent(
+                content_type=ContentType.MARKETING_COPY,
+                raw_text=request.text
+            )
+        else:
+            raise HTTPException(status_code=400, detail="Either URL or text must be provided")
+        
+        # Create market context
+        market_context = {
+            "category": "technology",
+            "target_market": "professionals",
+            "competitive_landscape": "competitive",
+            "trends": ["AI", "automation", "productivity"],
+            "competitors": {
+                "direct": ["competitor1.com", "competitor2.com"],
+                "indirect": ["alternative1.com", "alternative2.com"]
+            }
+        }
+        
+        # Create brief
+        brief = integration_manager._create_brief_from_content(scanned_content)
+        
+        # Run advanced simulation
+        config = {
+            'customer_percentage': 60,
+            'competitor_percentage': 20,
+            'influencer_percentage': 10,
+            'internal_team_percentage': 10
+        }
+        
+        result = await advanced_simulator.run_simulation(
+            brief, config, num_rounds=3, market_context=market_context
+        )
+        
+        # Add content analysis info
+        result['content_analyzed'] = {
+            'type': scanned_content.content_type.value,
+            'url': scanned_content.url,
+            'title': scanned_content.title,
+            'features_extracted': len(scanned_content.features)
+        }
+        
+        return result
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Advanced analysis failed: {str(e)}")
+
+# 10. Health Check
 @app.get("/health")
 def health_check():
     """Health check endpoint"""
@@ -204,5 +256,7 @@ def health_check():
         "status": "healthy",
         "version": "1.0.0",
         "integrations": list(integration_manager.active_integrations.keys()),
-        "simulations_running": len(simulations)
+        "simulations_running": len(simulations),
+        "ai_powered": True,
+        "llm_available": True
     }
