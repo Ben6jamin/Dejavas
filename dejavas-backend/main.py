@@ -1,10 +1,12 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 import uuid
-import random
+
+from langgraph_simulation import LangGraphSimulator
 
 app = FastAPI()
+simulator = LangGraphSimulator()
 
 # --- Data Models ---
 class Feature(BaseModel):
@@ -50,7 +52,19 @@ def upload_brief(brief: Brief):
 @app.post("/configure-agents/{session_id}")
 def configure_agents(session_id: str, config: AgentConfig):
     if session_id not in simulations:
-        return {"error": "Session not found"}
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    total = (
+        config.customer_percentage
+        + config.competitor_percentage
+        + config.influencer_percentage
+        + config.internal_team_percentage
+    )
+    if total != 100:
+        raise HTTPException(
+            status_code=400, detail="Agent percentages must sum to 100"
+        )
+
     simulations[session_id]["agent_config"] = config
     return {"message": "Agent configuration saved"}
 
@@ -58,65 +72,77 @@ def configure_agents(session_id: str, config: AgentConfig):
 @app.post("/simulate/{session_id}")
 def simulate(session_id: str):
     if session_id not in simulations:
-        return {"error": "Session not found"}
-    
-    # Mock simulation logic
+        raise HTTPException(status_code=404, detail="Session not found")
+
     config = simulations[session_id].get("agent_config")
     if not config:
-        return {"error": "Agent configuration missing"}
-    
-    # Mock simulation results
-    adoption_score = random.uniform(0, 100)
-    top_objections = ["Price too high", "Features not clear"]
-    must_fix = ["UI/UX improvement", "Speed optimization"]
+        raise HTTPException(status_code=400, detail="Agent configuration missing")
 
-    # Save the simulation results
+    brief = simulations[session_id]["brief"]
+    adoption_score, top_objections, must_fix = simulator.run(brief, config)
+
     simulations[session_id]["simulation_result"] = {
         "adoption_score": adoption_score,
         "top_objections": top_objections,
-        "must_fix": must_fix
+        "must_fix": must_fix,
     }
-    
+
     return {
         "adoption_score": adoption_score,
         "top_objections": top_objections,
-        "must_fix": must_fix
+        "must_fix": must_fix,
     }
+
+
+if __name__ == "__main__":  # pragma: no cover - manual invocation
+    app.serve()
+
+
+if __name__ == "__main__":  # pragma: no cover - manual invocation
+    app.serve()
 
 # 4. Get Report
 @app.get("/report/{session_id}")
 def get_report(session_id: str):
-    if session_id not in simulations or not simulations[session_id].get("simulation_result"):
-        return {"error": "Simulation not completed or session not found"}
-    
-    result = simulations[session_id]["simulation_result"]
+    if session_id not in simulations:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    result = simulations[session_id].get("simulation_result")
+    if not result:
+        raise HTTPException(status_code=400, detail="Simulation not completed")
+
     return SimulationReport(
         session_id=session_id,
         adoption_score=result["adoption_score"],
         top_objections=result["top_objections"],
-        must_fix=result["must_fix"]
+        must_fix=result["must_fix"],
     )
 
 # 5. Rerun Simulation (Iterate)
 @app.post("/rerun/{session_id}")
 def rerun_simulation(session_id: str):
     if session_id not in simulations:
-        return {"error": "Session not found"}
-    
-    # Mock new simulation logic after changes
-    adoption_score = random.uniform(0, 100)
-    top_objections = ["UI needs improvement", "User engagement low"]
-    must_fix = ["Better mobile version", "Integration with third-party apps"]
+        raise HTTPException(status_code=404, detail="Session not found")
 
-    # Save new simulation results
+    config = simulations[session_id].get("agent_config")
+    if not config:
+        raise HTTPException(status_code=400, detail="Agent configuration missing")
+
+    brief = simulations[session_id]["brief"]
+    adoption_score, top_objections, must_fix = simulator.run(brief, config)
+
     simulations[session_id]["simulation_result"] = {
         "adoption_score": adoption_score,
         "top_objections": top_objections,
-        "must_fix": must_fix
+        "must_fix": must_fix,
     }
-    
+
     return {
         "adoption_score": adoption_score,
         "top_objections": top_objections,
-        "must_fix": must_fix
+        "must_fix": must_fix,
     }
+
+
+if __name__ == "__main__":  # pragma: no cover - manual invocation
+    app.serve()
