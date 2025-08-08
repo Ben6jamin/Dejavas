@@ -60,7 +60,12 @@ class FastAPI:
                     else:
                         kwargs[name] = json
             return func(**kwargs)
-        raise HTTPException(status_code=404, detail="Session not found")
+        # The real FastAPI would raise a generic 404 for any unmatched route.
+        # Using a session-specific message made debugging confusing because it
+        # suggested a missing session even when the URL itself was incorrect.
+        # Replace it with a standard Not Found message so the behaviour mirrors
+        # the actual framework.
+        raise HTTPException(status_code=404, detail="Not Found")
 
     # --- Minimal development server -------------------------------------------------
     def serve(self, host: str = "127.0.0.1", port: int = 8000) -> None:
