@@ -19,6 +19,9 @@ import random
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Import Pydantic (required for data models)
+from pydantic import BaseModel, Field
+
 # Try to import LLM dependencies with graceful fallbacks
 try:
     from openai import AsyncOpenAI
@@ -26,7 +29,6 @@ try:
     from langchain.schema import HumanMessage, SystemMessage
     from langchain.prompts import ChatPromptTemplate
     from langchain.output_parsers import PydanticOutputParser
-    from pydantic import BaseModel, Field
     LLM_AVAILABLE = True
     logger.info("✅ LLM dependencies loaded successfully")
 except ImportError as e:

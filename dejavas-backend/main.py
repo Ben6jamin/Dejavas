@@ -10,7 +10,7 @@ from integrations import IntegrationManager, IntegrationType, BrowserExtensionAP
 from simulation import AdvancedSimulator, NetworkTopology
 from monitoring import get_monitoring_summary, start_monitoring, business_metrics, system_monitor
 
-app = FastAPI(title="Dejavas API", description="AI-Powered Marketing Intelligence Arena", version="1.0.0")
+app = FastAPI()
 
 # Initialize core components
 simulator = LangGraphSimulator()

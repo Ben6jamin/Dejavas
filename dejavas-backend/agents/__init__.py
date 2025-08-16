@@ -11,7 +11,7 @@ import random
 import json
 import asyncio
 
-from ..llm_integration import llm_integration, AgentContext, AgentRole, FeatureAnalysis
+from llm_integration import llm_integration, AgentContext, AgentRole, FeatureAnalysis
 
 class AgentType(Enum):
     CUSTOMER = "customer"

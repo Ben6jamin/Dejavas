@@ -34,10 +34,16 @@ class LangGraphSimulator:
     def __init__(self) -> None:
         self.enabled = _LANGGRAPH_AVAILABLE
         if self.enabled:
-            # Configure the underlying LLM and graph.  In a real implementation
-            # these nodes would model the debate between agents.
-            self.llm = ChatOpenAI()  # type: ignore[call-arg]
-            self.graph = StateGraph(state={})  # type: ignore[call-arg]
+            try:
+                # Configure the underlying LLM and graph.  In a real implementation
+                # these nodes would model the debate between agents.
+                self.llm = ChatOpenAI()  # type: ignore[call-arg]
+                self.graph = StateGraph(state={})  # type: ignore[call-arg]
+            except Exception:
+                # If LLM initialization fails, fall back to mock mode
+                self.enabled = False
+                self.llm = None
+                self.graph = None
         else:  # pragma: no cover - executed when LangGraph isn't installed
             self.llm = None
             self.graph = None

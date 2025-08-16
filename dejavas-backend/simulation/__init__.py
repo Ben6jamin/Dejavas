@@ -12,8 +12,8 @@ from enum import Enum
 import json
 import asyncio
 
-from ..agents import Agent, AgentFactory, AgentType
-from ..llm_integration import llm_integration, FeatureAnalysis
+from agents import Agent, AgentFactory, AgentType
+from llm_integration import llm_integration, FeatureAnalysis
 
 class NetworkTopology(Enum):
     ECHO_CHAMBER = "echo_chamber"
